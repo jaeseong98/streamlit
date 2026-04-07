@@ -16,6 +16,7 @@ from data_loader import (
 )
 from scoring import calc_hotplace_score
 from charts import hotplace_score_bar
+from chat_ui import render_chat_panel
 
 st.set_page_config(page_title="넥스트 핫플", page_icon="🔥", layout="wide")
 st.title("🔥 넥스트 핫플 예측")
@@ -167,3 +168,5 @@ st.dataframe(
     use_container_width=True,
     height=400
 )
+
+render_chat_panel(current_tab="넥스트 핫플")

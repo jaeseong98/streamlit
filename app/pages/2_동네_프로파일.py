@@ -17,6 +17,7 @@ from charts import (
     spending_radar_chart, population_flow_chart, population_pyramid,
     realestate_trend_chart, income_distribution_chart, job_donut_chart
 )
+from chat_ui import render_chat_panel
 
 st.set_page_config(page_title="동네 프로파일", page_icon="🔍", layout="wide")
 st.title("🔍 동네 프로파일")
@@ -245,3 +246,5 @@ with col_d2:
         )
     else:
         st.info("직업 데이터 없음")
+
+render_chat_panel(current_tab="동네 프로파일", selected_district=district, selected_month=str(selected_month))

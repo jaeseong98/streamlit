@@ -17,6 +17,7 @@ from data_loader import (
     load_card_sales_agg, load_population_agg
 )
 from charts import TIME_SLOT_KOR, LIFESTYLE_KOR, CATEGORY_KOR
+from chat_ui import render_chat_panel
 
 st.set_page_config(page_title="디지털 트윈", page_icon="🌆", layout="wide")
 st.title("🌆 디지털 트윈 — 살아있는 서울")
@@ -440,3 +441,5 @@ with tab_sim:
 
         for ins in insights:
             st.markdown(f"- {ins}")
+
+render_chat_panel(current_tab="디지털 트윈", selected_month=str(selected_month))

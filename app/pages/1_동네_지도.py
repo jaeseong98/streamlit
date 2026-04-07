@@ -17,6 +17,7 @@ from data_loader import (
     load_card_sales_agg, load_income_agg
 )
 from scoring import calc_hotplace_score, normalize_series, calc_purchasing_power
+from chat_ui import render_chat_panel
 
 st.set_page_config(page_title="동네 지도", page_icon="🗺️", layout="wide")
 st.title("🗺️ 동네 지도")
@@ -178,3 +179,5 @@ with col2:
 if map_data and map_data.get("last_object_clicked"):
     clicked = map_data["last_object_clicked"]
     st.info(f"클릭한 위치: {clicked.get('lat', ''):.4f}, {clicked.get('lng', ''):.4f} — '동네 프로파일' 탭에서 상세 분석을 확인하세요.")
+
+render_chat_panel(current_tab="동네 지도")
