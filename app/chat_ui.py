@@ -2,11 +2,12 @@
 AI 에이전트 채팅 UI — 채널톡 스타일 플로팅 위젯
 components.html iframe 내부에서 parent document에 inject
 """
+import os
 import streamlit as st
 import requests
 import streamlit.components.v1 as components
 
-AGENT_URL = "http://localhost:8000"
+AGENT_URL = os.environ.get("AGENT_URL", "http://localhost:8000")
 
 
 def _check_health() -> bool:

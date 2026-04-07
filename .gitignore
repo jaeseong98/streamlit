@@ -206,5 +206,4 @@ marimo/_static/
 marimo/_lsp/
 __marimo__/
 
-# 전처리 결과물 (preprocess.py로 재생성)
-processed_data/
+# processed_data는 배포 시 필요하므로 포함
