@@ -247,4 +247,29 @@ with col_d2:
     else:
         st.info("직업 데이터 없음")
 
-render_chat_panel(current_tab="동네 프로파일", selected_district=district, selected_month=str(selected_month))
+# Build page context for chat panel
+try:
+    _ctx_parts = [f"동네 프로파일 - {city} {district}, 기준: {selected_month_label}"]
+    if not pop_district.empty:
+        _ctx_total_pop = (pop_district["RESIDENTIAL_POPULATION"].values[0]
+                          + pop_district["WORKING_POPULATION"].values[0]
+                          + pop_district["VISITING_POPULATION"].values[0])
+        _ctx_parts.append(f"총 유동인구: {_ctx_total_pop:,.0f}명")
+    if not card_district.empty and "TOTAL_SALES" in card_district.columns:
+        _ctx_sales = card_district["TOTAL_SALES"].values[0]
+        if _ctx_sales > 1e8:
+            _ctx_parts.append(f"월 카드매출: {_ctx_sales/1e8:,.1f}억원")
+        else:
+            _ctx_parts.append(f"월 카드매출: {_ctx_sales/1e4:,.0f}만원")
+    if not income_district.empty and "AVERAGE_INCOME" in income_district.columns:
+        _ctx_avg_income = income_district["AVERAGE_INCOME"].values[0]
+        if pd.notna(_ctx_avg_income) and _ctx_avg_income > 0:
+            _ctx_parts.append(f"평균소득: {_ctx_avg_income/1e4:,.0f}만원")
+    if not income_district.empty and "total_customers" in income_district.columns:
+        _ctx_customers = income_district["total_customers"].values[0]
+        _ctx_parts.append(f"고객 수: {_ctx_customers:,.0f}명")
+    page_context = ", ".join(_ctx_parts)
+except Exception:
+    page_context = f"동네 프로파일 - {city} {district}"
+
+render_chat_panel(current_tab="동네 프로파일", selected_district=district, selected_month=str(selected_month), page_context=page_context)

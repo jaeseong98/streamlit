@@ -25,7 +25,11 @@ def _get_cost_summary() -> dict | None:
         return None
 
 
-def render_chat_panel(current_tab: str = "", selected_district: str = "", selected_month: str = ""):
+def render_chat_panel(current_tab: str = "", selected_district: str = "", selected_month: str = "", page_context: str = ""):
+    """
+    page_context: 현재 페이지에서 사용자가 보고 있는 상세 정보.
+    예: "동네 프로파일 - 중구 신당동, 유동인구 45,935명, 카드매출 35.9억, 평균소득 4,999만원"
+    """
     agent_online = _check_health()
 
     # 사이드바 비용
@@ -53,7 +57,8 @@ def render_chat_panel(current_tab: str = "", selected_district: str = "", select
         var CTX = {{
             district: "{selected_district}",
             month: "{selected_month}",
-            tab: "{current_tab}"
+            tab: "{current_tab}",
+            page_context: {repr(page_context)}
         }};
 
         // 대화 복원
@@ -220,7 +225,7 @@ def render_chat_panel(current_tab: str = "", selected_district: str = "", select
                     method:'POST', headers:{{'Content-Type':'application/json'}},
                     body: JSON.stringify({{
                         query:text, chat_history:hist.slice(0,-1),
-                        selected_district:CTX.district, selected_month:CTX.month, current_tab:CTX.tab
+                        selected_district:CTX.district, selected_month:CTX.month, current_tab:CTX.tab, page_context:CTX.page_context
                     }})
                 }});
                 var ty = doc.getElementById('xtyp'); if (ty) ty.remove();

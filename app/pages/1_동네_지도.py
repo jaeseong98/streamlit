@@ -180,4 +180,9 @@ if map_data and map_data.get("last_object_clicked"):
     clicked = map_data["last_object_clicked"]
     st.info(f"클릭한 위치: {clicked.get('lat', ''):.4f}, {clicked.get('lng', ''):.4f} — '동네 프로파일' 탭에서 상세 분석을 확인하세요.")
 
-render_chat_panel(current_tab="동네 지도")
+# Build page context for chat panel
+_top3 = district_metrics.nlargest(3, color_col)["name"].tolist()
+_top3_names = ", ".join(_top3)
+page_context = f"동네 지도 - 지표: {metric}, 기준: {selected_month_label}, 상위 동네: {_top3_names}"
+
+render_chat_panel(current_tab="동네 지도", selected_district=None, selected_month=None, page_context=page_context)

@@ -161,4 +161,8 @@ if pop_compare:
     fig2.update_layout(barmode="group", height=400, title="유동인구 구성 비교")
     st.plotly_chart(fig2, use_container_width=True)
 
-render_chat_panel(current_tab="동네 비교")
+# Build page context for chat panel
+_compared = ", ".join(selected) if selected else "없음"
+page_context = f"동네 비교 - 비교 대상: {_compared}, 기준: {selected_month_label}"
+
+render_chat_panel(current_tab="동네 비교", selected_district=None, selected_month=None, page_context=page_context)

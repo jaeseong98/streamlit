@@ -113,4 +113,11 @@ else:
     | **동네 비교** | 2~3개 동네 나란히 비교 |
     """)
 
-render_chat_panel(current_tab="메인")
+# Build page context for chat panel
+if filtered_news:
+    _ctx_title = selected_item.get("title", "")
+    page_context = f"메인 뉴스 타임라인 - 선택된 인사이트: {_ctx_title}"
+else:
+    page_context = "메인 뉴스 타임라인"
+
+render_chat_panel(current_tab="메인", selected_district=None, selected_month=None, page_context=page_context)
