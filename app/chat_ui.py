@@ -1,8 +1,6 @@
 """
 AI 에이전트 채팅 UI — 채널톡 스타일 플로팅 위젯
-Streamlit 페이지 위에 떠다니는 독립 HTML/JS 위젯
-- localStorage로 대화 기록 유지
-- 부모 페이지에 JS inject하여 진짜 fixed 위치 고정
+components.html iframe 내부에서 parent document에 inject
 """
 import streamlit as st
 import requests
@@ -28,8 +26,6 @@ def _get_cost_summary() -> dict | None:
 
 
 def render_chat_panel(current_tab: str = "", selected_district: str = "", selected_month: str = ""):
-    """채널톡 스타일 플로팅 채팅 위젯"""
-
     agent_online = _check_health()
 
     # 사이드바 비용
@@ -44,291 +40,207 @@ def render_chat_panel(current_tab: str = "", selected_district: str = "", select
             with col2:
                 st.metric("질의 수", f"{cost_summary['total_queries']}건")
 
-    # ── 방법: 부모 페이지에 직접 JS/CSS를 주입 ──
-    # st.markdown으로 부모 DOM에 직접 채팅 위젯을 삽입
-    # components.html iframe 대신 부모 페이지에 직접 렌더링
-
-    chat_inject_js = f"""
+    inject_html = f"""
     <script>
     (function() {{
-        // 이미 삽입되었으면 스킵
-        if (document.getElementById('xray-chat-fab')) return;
+        // 부모 document 접근
+        var doc = window.parent.document;
 
-        const AGENT_URL = "{AGENT_URL}";
-        const CONTEXT = {{
-            selected_district: "{selected_district}",
-            selected_month: "{selected_month}",
-            current_tab: "{current_tab}"
+        // 이미 있으면 스킵
+        if (doc.getElementById('xray-chat-fab')) return;
+
+        var AGENT_URL = "{AGENT_URL}";
+        var CTX = {{
+            district: "{selected_district}",
+            month: "{selected_month}",
+            tab: "{current_tab}"
         }};
 
-        // localStorage에서 대화 복원
-        let chatHistory = JSON.parse(localStorage.getItem('xray_chat_history') || '[]');
-        let isOpen = localStorage.getItem('xray_chat_open') === 'true';
+        // 대화 복원
+        var hist = JSON.parse(localStorage.getItem('xray_hist') || '[]');
+        var wasOpen = localStorage.getItem('xray_open') === '1';
 
-        // ── CSS ──
-        const style = document.createElement('style');
-        style.textContent = `
+        // CSS
+        var css = doc.createElement('style');
+        css.textContent = `
             #xray-chat-fab {{
-                position: fixed;
-                bottom: 28px;
-                right: 28px;
-                z-index: 999999;
-                width: 56px;
-                height: 56px;
-                border-radius: 50%;
-                background: linear-gradient(135deg, #6366F1, #8B5CF6);
-                border: none;
-                cursor: pointer;
-                box-shadow: 0 4px 16px rgba(99,102,241,0.5);
-                display: flex;
-                align-items: center;
-                justify-content: center;
-                transition: all 0.3s ease;
+                position:fixed; bottom:28px; right:28px; z-index:999999;
+                width:56px; height:56px; border-radius:50%;
+                background:linear-gradient(135deg,#6366F1,#8B5CF6);
+                border:none; cursor:pointer;
+                box-shadow:0 4px 16px rgba(99,102,241,0.5);
+                display:flex; align-items:center; justify-content:center;
+                transition:all 0.3s;
             }}
-            #xray-chat-fab:hover {{
-                transform: scale(1.08);
-                box-shadow: 0 6px 24px rgba(99,102,241,0.7);
+            #xray-chat-fab:hover {{ transform:scale(1.08); box-shadow:0 6px 24px rgba(99,102,241,0.7); }}
+            #xray-chat-fab svg {{ width:26px; height:26px; fill:white; }}
+            .xray-dot {{
+                position:absolute; top:2px; right:2px;
+                width:12px; height:12px; border-radius:50%;
+                background:{"#4CAF50" if agent_online else "#f44336"};
+                border:2px solid white;
             }}
-            #xray-chat-fab svg {{ width: 26px; height: 26px; fill: white; }}
-            #xray-chat-fab .xdot {{
-                position: absolute; top: 2px; right: 2px;
-                width: 12px; height: 12px; border-radius: 50%;
-                background: {"#4CAF50" if agent_online else "#f44336"};
-                border: 2px solid white;
+            #xray-popup {{
+                position:fixed; bottom:96px; right:28px; z-index:999998;
+                width:380px; height:520px; background:#1a1a2e;
+                border-radius:16px; box-shadow:0 8px 40px rgba(0,0,0,0.4);
+                display:none; flex-direction:column; overflow:hidden;
+                border:1px solid #2a2a4a;
+                font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
             }}
+            #xray-popup.xopen {{ display:flex; animation:xup 0.25s ease-out; }}
+            @keyframes xup {{ from{{opacity:0;transform:translateY(16px)}} to{{opacity:1;transform:translateY(0)}} }}
 
-            #xray-chat-popup {{
-                position: fixed;
-                bottom: 96px;
-                right: 28px;
-                z-index: 999998;
-                width: 380px;
-                height: 520px;
-                background: #1a1a2e;
-                border-radius: 16px;
-                box-shadow: 0 8px 40px rgba(0,0,0,0.4);
-                display: none;
-                flex-direction: column;
-                overflow: hidden;
-                border: 1px solid #2a2a4a;
-                font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-            }}
-            #xray-chat-popup.xopen {{ display: flex; animation: xSlideUp 0.25s ease-out; }}
-            @keyframes xSlideUp {{
-                from {{ opacity:0; transform:translateY(16px); }}
-                to {{ opacity:1; transform:translateY(0); }}
-            }}
+            .xhd {{ background:linear-gradient(135deg,#6366F1,#8B5CF6); padding:14px 16px; display:flex; justify-content:space-between; align-items:center; flex-shrink:0; }}
+            .xhd-t {{ color:white; font-size:15px; font-weight:700; }}
+            .xhd-s {{ color:rgba(255,255,255,0.6); font-size:11px; margin-top:2px; }}
+            .xhd-x {{ background:none; border:none; color:rgba(255,255,255,0.7); font-size:20px; cursor:pointer; }}
+            .xhd-x:hover {{ color:white; }}
 
-            .xhdr {{
-                background: linear-gradient(135deg, #6366F1, #8B5CF6);
-                padding: 14px 16px; display: flex;
-                justify-content: space-between; align-items: center; flex-shrink: 0;
-            }}
-            .xhdr-t {{ color:white; font-size:15px; font-weight:700; }}
-            .xhdr-s {{ color:rgba(255,255,255,0.6); font-size:11px; margin-top:2px; }}
-            .xhdr-x {{ background:none; border:none; color:rgba(255,255,255,0.7);
-                       font-size:20px; cursor:pointer; padding:0 4px; }}
-            .xhdr-x:hover {{ color:white; }}
-
-            .xmsgs {{
-                flex:1; overflow-y:auto; padding:14px;
-                display:flex; flex-direction:column; gap:8px;
-            }}
-            .xmsgs::-webkit-scrollbar {{ width:4px; }}
-            .xmsgs::-webkit-scrollbar-thumb {{ background:#444; border-radius:2px; }}
-
-            .xm-u {{
-                align-self:flex-end; background:#6366F1; color:white;
-                padding:8px 14px; border-radius:16px 16px 4px 16px;
-                max-width:80%; font-size:13px; line-height:1.5; word-break:break-word;
-            }}
-            .xm-b {{
-                align-self:flex-start; background:#2a2a4a; color:#E0E0E0;
-                padding:10px 14px; border-radius:16px 16px 16px 4px;
-                max-width:85%; font-size:13px; line-height:1.6; word-break:break-word;
-            }}
-            .xm-c {{ font-size:10px; color:#888; margin-top:4px; }}
-            .xm-t {{ align-self:flex-start; color:#888; font-size:12px; padding:8px; }}
-            .xm-t .xdot {{ animation: xblink 1.4s infinite; display:inline-block; }}
-            .xm-t .xdot:nth-child(2) {{ animation-delay:0.2s; }}
-            .xm-t .xdot:nth-child(3) {{ animation-delay:0.4s; }}
-            @keyframes xblink {{ 0%,80%,100%{{opacity:0}} 40%{{opacity:1}} }}
+            #xmsgs {{ flex:1; overflow-y:auto; padding:14px; display:flex; flex-direction:column; gap:8px; }}
+            #xmsgs::-webkit-scrollbar {{ width:4px; }}
+            #xmsgs::-webkit-scrollbar-thumb {{ background:#444; border-radius:2px; }}
+            .xu {{ align-self:flex-end; background:#6366F1; color:white; padding:8px 14px; border-radius:16px 16px 4px 16px; max-width:80%; font-size:13px; line-height:1.5; word-break:break-word; }}
+            .xb {{ align-self:flex-start; background:#2a2a4a; color:#E0E0E0; padding:10px 14px; border-radius:16px 16px 16px 4px; max-width:85%; font-size:13px; line-height:1.6; word-break:break-word; }}
+            .xc {{ font-size:10px; color:#888; margin-top:4px; }}
+            .xt {{ align-self:flex-start; color:#888; font-size:12px; padding:8px; }}
+            .xt .xd {{ animation:xbl 1.4s infinite; display:inline-block; }}
+            .xt .xd:nth-child(2) {{ animation-delay:0.2s; }}
+            .xt .xd:nth-child(3) {{ animation-delay:0.4s; }}
+            @keyframes xbl {{ 0%,80%,100%{{opacity:0}} 40%{{opacity:1}} }}
 
             .xwel {{ text-align:center; padding:50px 20px; color:#888; }}
-            .xwel-i {{ font-size:36px; margin-bottom:8px; }}
-            .xwel-h {{ font-size:14px; font-weight:600; color:#ccc; }}
-            .xwel-d {{ font-size:11px; margin-top:6px; line-height:1.5; }}
+            .xwel b {{ font-size:36px; display:block; margin-bottom:8px; }}
+            .xwel strong {{ font-size:14px; color:#ccc; }}
+            .xwel small {{ font-size:11px; display:block; margin-top:6px; line-height:1.5; }}
 
-            .xsug {{ padding:8px 14px 4px; display:flex; flex-wrap:wrap; gap:6px; flex-shrink:0; }}
-            .xsug-b {{
-                background:#2a2a4a; border:1px solid #3a3a5a; color:#B0B0D0;
-                padding:6px 12px; border-radius:20px; font-size:11px;
-                cursor:pointer; transition:all 0.2s;
-            }}
-            .xsug-b:hover {{ background:#6366F1; color:white; border-color:#6366F1; }}
+            #xsug {{ padding:8px 14px 4px; display:flex; flex-wrap:wrap; gap:6px; flex-shrink:0; }}
+            .xs {{ background:#2a2a4a; border:1px solid #3a3a5a; color:#B0B0D0; padding:6px 12px; border-radius:20px; font-size:11px; cursor:pointer; transition:all 0.2s; }}
+            .xs:hover {{ background:#6366F1; color:white; border-color:#6366F1; }}
 
-            .xinp {{
-                padding:10px 12px; border-top:1px solid #2a2a4a;
-                display:flex; gap:8px; flex-shrink:0; background:#16162a;
-            }}
-            .xinp input {{
-                flex:1; background:#2a2a4a; border:1px solid #3a3a5a;
-                border-radius:20px; padding:8px 16px; color:#E0E0E0;
-                font-size:13px; outline:none;
-            }}
-            .xinp input:focus {{ border-color:#6366F1; }}
-            .xinp input::placeholder {{ color:#555; }}
-            .xinp button {{
-                background:#6366F1; border:none; border-radius:50%;
-                width:36px; height:36px; cursor:pointer;
-                display:flex; align-items:center; justify-content:center;
-            }}
-            .xinp button:hover {{ background:#5355D4; }}
-            .xinp button svg {{ width:16px; height:16px; fill:white; }}
-            .xinp button:disabled {{ opacity:0.4; cursor:not-allowed; }}
+            .xin {{ padding:10px 12px; border-top:1px solid #2a2a4a; display:flex; gap:8px; flex-shrink:0; background:#16162a; }}
+            #xinp {{ flex:1; background:#2a2a4a; border:1px solid #3a3a5a; border-radius:20px; padding:8px 16px; color:#E0E0E0; font-size:13px; outline:none; }}
+            #xinp:focus {{ border-color:#6366F1; }}
+            #xinp::placeholder {{ color:#555; }}
+            #xsnd {{ background:#6366F1; border:none; border-radius:50%; width:36px; height:36px; cursor:pointer; display:flex; align-items:center; justify-content:center; }}
+            #xsnd:hover {{ background:#5355D4; }}
+            #xsnd svg {{ width:16px; height:16px; fill:white; }}
+            #xsnd:disabled {{ opacity:0.4; cursor:not-allowed; }}
         `;
-        document.head.appendChild(style);
+        doc.head.appendChild(css);
 
-        // ── FAB 버튼 ──
-        const fab = document.createElement('button');
+        // FAB
+        var fab = doc.createElement('button');
         fab.id = 'xray-chat-fab';
-        fab.innerHTML = '<svg viewBox="0 0 24 24"><path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H6l-2 2V4h16v12z"/><path d="M7 9h2v2H7zm4 0h2v2h-2zm4 0h2v2h-2z"/></svg><div class="xdot"></div>';
-        fab.onclick = toggleChat;
-        document.body.appendChild(fab);
+        fab.innerHTML = '<svg viewBox="0 0 24 24"><path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H6l-2 2V4h16v12z"/><path d="M7 9h2v2H7zm4 0h2v2h-2zm4 0h2v2h-2z"/></svg><div class="xray-dot"></div>';
+        fab.onclick = function() {{
+            var p = doc.getElementById('xray-popup');
+            var o = !p.classList.contains('xopen');
+            p.classList.toggle('xopen', o);
+            localStorage.setItem('xray_open', o ? '1' : '0');
+            if (o) doc.getElementById('xinp').focus();
+        }};
+        doc.body.appendChild(fab);
 
-        // ── 채팅 팝업 ──
-        const popup = document.createElement('div');
-        popup.id = 'xray-chat-popup';
-        popup.innerHTML = `
-            <div class="xhdr">
-                <div>
-                    <div class="xhdr-t">🤖 동네 엑스레이 AI</div>
-                    <div class="xhdr-s" id="xhdr-status">{"🟢 온라인" if agent_online else "🔴 오프라인"}</div>
-                </div>
-                <button class="xhdr-x" onclick="document.getElementById('xray-chat-popup').classList.remove('xopen'); localStorage.setItem('xray_chat_open','false');">✕</button>
-            </div>
-            <div class="xmsgs" id="xmsgs"></div>
-            <div class="xsug" id="xsug">
-                <button class="xsug-b" onclick="xSend('신당동 유동인구 알려줘')">신당동 유동인구</button>
-                <button class="xsug-b" onclick="xSend('서초동에 카페 차리면 매출이?')">카페 시뮬레이션</button>
-                <button class="xsug-b" onclick="xSend('다음 핫플은 어디야?')">넥스트 핫플</button>
-                <button class="xsug-b" onclick="xSend('중구 vs 영등포구 비교')">동네 비교</button>
-            </div>
-            <div class="xinp">
-                <input id="xinput" placeholder="메시지를 입력하세요..." onkeydown="if(event.key==='Enter')xSendInput()"/>
-                <button id="xsendbtn" onclick="xSendInput()">
-                    <svg viewBox="0 0 24 24"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
-                </button>
-            </div>
-        `;
-        document.body.appendChild(popup);
+        // POPUP
+        var popup = doc.createElement('div');
+        popup.id = 'xray-popup';
+        popup.innerHTML = '<div class="xhd"><div><div class="xhd-t">🤖 동네 엑스레이 AI</div><div class="xhd-s" id="xhd-st">{"🟢 온라인" if agent_online else "🔴 오프라인"}</div></div><button class="xhd-x" id="xray-close">✕</button></div><div id="xmsgs"><div class="xwel"><b>🏙️</b><strong>동네 데이터, 무엇이든 물어보세요</strong><small>유동인구 · 카드매출 · 소득 · 부동산<br>시뮬레이션 · 핫플 예측 · 동네 비교</small></div></div><div id="xsug"></div><div class="xin"><input id="xinp" placeholder="메시지를 입력하세요..."/><button id="xsnd"><svg viewBox="0 0 24 24"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg></button></div>';
+        doc.body.appendChild(popup);
 
-        // 이전 대화 복원
-        if (chatHistory.length > 0) {{
-            document.getElementById('xsug').style.display = 'none';
-            const msgs = document.getElementById('xmsgs');
-            msgs.innerHTML = '';
-            chatHistory.forEach(m => {{
-                addMsg(m.role === 'user' ? 'u' : 'b', m.content, m.cost, m.tier, true);
-            }});
+        // 닫기
+        doc.getElementById('xray-close').onclick = function() {{
+            doc.getElementById('xray-popup').classList.remove('xopen');
+            localStorage.setItem('xray_open', '0');
+        }};
+
+        // 추천 질문
+        var sugEl = doc.getElementById('xsug');
+        var sugs = ['신당동 유동인구 알려줘','서초동에 카페 차리면?','다음 핫플은 어디야?','중구 vs 영등포구'];
+        var sugLabels = ['신당동 유동인구','카페 시뮬레이션','넥스트 핫플','동네 비교'];
+        sugs.forEach(function(s, i) {{
+            var b = doc.createElement('button');
+            b.className = 'xs';
+            b.textContent = sugLabels[i];
+            b.onclick = function() {{ xSend(s); }};
+            sugEl.appendChild(b);
+        }});
+
+        // 엔터키
+        doc.getElementById('xinp').onkeydown = function(e) {{ if (e.key === 'Enter') xSendInput(); }};
+        doc.getElementById('xsnd').onclick = function() {{ xSendInput(); }};
+
+        // 대화 복원
+        if (hist.length > 0) {{
+            sugEl.style.display = 'none';
+            var m = doc.getElementById('xmsgs');
+            m.innerHTML = '';
+            hist.forEach(function(h) {{ addMsg(h.role === 'user' ? 'u' : 'b', h.content, h.cost, h.tier); }});
         }}
+        if (wasOpen) popup.classList.add('xopen');
 
-        // 열려있었으면 다시 열기
-        if (isOpen) popup.classList.add('xopen');
-
-        function toggleChat() {{
-            const p = document.getElementById('xray-chat-popup');
-            const wasOpen = p.classList.contains('xopen');
-            p.classList.toggle('xopen');
-            localStorage.setItem('xray_chat_open', !wasOpen);
-            if (!wasOpen) document.getElementById('xinput').focus();
-        }}
-
-        function addMsg(type, content, cost, tier, noSave) {{
-            const msgs = document.getElementById('xmsgs');
-            const wel = msgs.querySelector('.xwel');
-            if (wel) wel.remove();
-
-            const d = document.createElement('div');
-            d.className = type === 'u' ? 'xm-u' : 'xm-b';
-            let html = content.replace(/\\n/g, '<br>');
+        function addMsg(type, content, cost, tier) {{
+            var m = doc.getElementById('xmsgs');
+            var w = m.querySelector('.xwel'); if (w) w.remove();
+            var d = doc.createElement('div');
+            d.className = type === 'u' ? 'xu' : 'xb';
+            var h = content.replace(/\\n/g, '<br>');
             if (cost && cost > 0) {{
-                const e = {{"simple":"🟢","analysis":"🟡","complex":"🔴"}}[tier] || "⚪";
-                html += '<div class="xm-c">💰 $' + cost.toFixed(4) + ' ' + e + '</div>';
+                var e = {{"simple":"🟢","analysis":"🟡","complex":"🔴"}}[tier] || "⚪";
+                h += '<div class="xc">💰 $' + cost.toFixed(4) + ' ' + e + '</div>';
             }}
-            d.innerHTML = html;
-            msgs.appendChild(d);
-            msgs.scrollTop = msgs.scrollHeight;
-
-            if (chatHistory.length > 0) {{
-                document.getElementById('xsug').style.display = 'none';
-            }}
+            d.innerHTML = h;
+            m.appendChild(d);
+            m.scrollTop = m.scrollHeight;
+            if (hist.length > 0) doc.getElementById('xsug').style.display = 'none';
         }}
 
-        function saveHistory() {{
-            localStorage.setItem('xray_chat_history', JSON.stringify(chatHistory));
-        }}
+        function save() {{ localStorage.setItem('xray_hist', JSON.stringify(hist)); }}
 
-        // 전역 함수로 등록
         window.xSendInput = function() {{
-            const inp = document.getElementById('xinput');
-            const t = inp.value.trim();
-            if (!t) return;
-            inp.value = '';
-            xSend(t);
+            var inp = doc.getElementById('xinp');
+            var t = inp.value.trim(); if (!t) return;
+            inp.value = ''; xSend(t);
         }};
 
         window.xSend = async function(text) {{
             addMsg('u', text);
-            chatHistory.push({{role:'user', content:text}});
-            saveHistory();
+            hist.push({{role:'user', content:text}});
+            save();
+            doc.getElementById('xsnd').disabled = true;
 
-            const btn = document.getElementById('xsendbtn');
-            btn.disabled = true;
-
-            // typing
-            const msgs = document.getElementById('xmsgs');
-            const td = document.createElement('div');
-            td.className = 'xm-t'; td.id = 'xtyping';
-            td.innerHTML = '<span class="xdot">●</span> <span class="xdot">●</span> <span class="xdot">●</span> 분석 중...';
-            msgs.appendChild(td);
-            msgs.scrollTop = msgs.scrollHeight;
+            var m = doc.getElementById('xmsgs');
+            var td = doc.createElement('div');
+            td.className = 'xt'; td.id = 'xtyp';
+            td.innerHTML = '<span class="xd">●</span> <span class="xd">●</span> <span class="xd">●</span> 분석 중...';
+            m.appendChild(td); m.scrollTop = m.scrollHeight;
 
             try {{
-                const r = await fetch(AGENT_URL + '/chat', {{
-                    method: 'POST',
-                    headers: {{'Content-Type':'application/json'}},
+                var r = await fetch(AGENT_URL + '/chat', {{
+                    method:'POST', headers:{{'Content-Type':'application/json'}},
                     body: JSON.stringify({{
-                        query: text,
-                        chat_history: chatHistory.slice(0,-1),
-                        selected_district: CONTEXT.selected_district,
-                        selected_month: CONTEXT.selected_month,
-                        current_tab: CONTEXT.current_tab
+                        query:text, chat_history:hist.slice(0,-1),
+                        selected_district:CTX.district, selected_month:CTX.month, current_tab:CTX.tab
                     }})
                 }});
-                const ty = document.getElementById('xtyping');
-                if (ty) ty.remove();
-
+                var ty = doc.getElementById('xtyp'); if (ty) ty.remove();
                 if (r.ok) {{
-                    const d = await r.json();
-                    addMsg('b', d.answer || '응답 없음', d.total_cost, d.query_type);
-                    chatHistory.push({{role:'assistant', content:d.answer, cost:d.total_cost, tier:d.query_type}});
-                    saveHistory();
-                    const st = document.getElementById('xhdr-status');
+                    var d = await r.json();
+                    addMsg('b', d.answer||'응답 없음', d.total_cost, d.query_type);
+                    hist.push({{role:'assistant', content:d.answer, cost:d.total_cost, tier:d.query_type}});
+                    save();
+                    var st = doc.getElementById('xhd-st');
                     if (st) st.innerHTML = '🟢 온라인 · 💰 $' + (d.session_total_cost||0).toFixed(4);
-                }} else {{
-                    addMsg('b', '❌ 오류: ' + r.status);
-                }}
+                }} else {{ addMsg('b', '❌ 오류: ' + r.status); }}
             }} catch(e) {{
-                const ty = document.getElementById('xtyping');
-                if (ty) ty.remove();
+                var ty = doc.getElementById('xtyp'); if (ty) ty.remove();
                 addMsg('b', '❌ 연결 실패: ' + e.message);
             }}
-            btn.disabled = false;
-            document.getElementById('xinput').focus();
+            doc.getElementById('xsnd').disabled = false;
+            doc.getElementById('xinp').focus();
         }};
     }})();
     </script>
     """
 
-    st.markdown(chat_inject_js, unsafe_allow_html=True)
+    components.html(inject_html, height=0, scrolling=False)
