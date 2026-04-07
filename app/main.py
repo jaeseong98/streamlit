@@ -15,6 +15,7 @@ st.set_page_config(
 )
 
 from news_engine import generate_news_items, render_news_card, render_detail_panel
+from chat_ui import render_chat_panel
 
 # ── 뉴스 생성 ──
 news_items = generate_news_items()
@@ -111,3 +112,12 @@ else:
     | **디지털 트윈** | 합성 시민이 움직이는 살아있는 지도 + 시뮬레이션 |
     | **동네 비교** | 2~3개 동네 나란히 비교 |
     """)
+
+# Build page context for chat panel
+if filtered_news:
+    _ctx_title = selected_item.get("title", "")
+    page_context = f"메인 뉴스 타임라인 - 선택된 인사이트: {_ctx_title}"
+else:
+    page_context = "메인 뉴스 타임라인"
+
+render_chat_panel(current_tab="메인", selected_district=None, selected_month=None, page_context=page_context)

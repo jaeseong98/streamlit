@@ -17,6 +17,7 @@ from data_loader import (
     load_card_sales_agg, load_population_agg
 )
 from charts import TIME_SLOT_KOR, LIFESTYLE_KOR, CATEGORY_KOR
+from chat_ui import render_chat_panel
 
 st.set_page_config(page_title="디지털 트윈", page_icon="🌆", layout="wide")
 st.title("🌆 디지털 트윈 — 살아있는 서울")
@@ -440,3 +441,9 @@ with tab_sim:
 
         for ins in insights:
             st.markdown(f"- {ins}")
+
+# Build page context for chat panel
+_num_agents = len(agents_df) if 'agents_df' in dir() else 0
+page_context = f"디지털 트윈 - 기준: {selected_month_label}, 시간대: {TIME_SLOT_KOR.get(selected_time, selected_time)}, 합성 시민 수: {_num_agents:,}명"
+
+render_chat_panel(current_tab="디지털 트윈", selected_district=None, selected_month=str(selected_month), page_context=page_context)

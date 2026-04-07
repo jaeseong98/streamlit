@@ -13,6 +13,7 @@ from data_loader import (
     load_income_agg
 )
 from charts import CATEGORY_KOR
+from chat_ui import render_chat_panel
 
 st.set_page_config(page_title="동네 비교", page_icon="⚖️", layout="wide")
 st.title("⚖️ 동네 비교")
@@ -159,3 +160,9 @@ if pop_compare:
     fig2.add_trace(go.Bar(x=pop_df["동네"], y=pop_df["방문인구"], name="방문인구", marker_color="#00CC96"))
     fig2.update_layout(barmode="group", height=400, title="유동인구 구성 비교")
     st.plotly_chart(fig2, use_container_width=True)
+
+# Build page context for chat panel
+_compared = ", ".join(selected) if selected else "없음"
+page_context = f"동네 비교 - 비교 대상: {_compared}, 기준: {selected_month_label}"
+
+render_chat_panel(current_tab="동네 비교", selected_district=None, selected_month=None, page_context=page_context)
