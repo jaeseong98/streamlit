@@ -7,7 +7,11 @@ import streamlit as st
 import requests
 import streamlit.components.v1 as components
 
-AGENT_URL = os.environ.get("AGENT_URL", "http://localhost:8000")
+# Streamlit Cloud는 st.secrets, 로컬은 환경변수 또는 기본값
+try:
+    AGENT_URL = st.secrets.get("AGENT_URL", os.environ.get("AGENT_URL", "http://localhost:8000"))
+except Exception:
+    AGENT_URL = os.environ.get("AGENT_URL", "http://localhost:8000")
 
 
 def _check_health() -> bool:
