@@ -1,0 +1,14 @@
+{
+  "permissions": {
+    "allow": [
+      "Read(//d/park/snowflack/NR>1 && $8!=\"\" {sum+=$8; if\\(min==\"\"||$8<min\\)min=$8; if\\($8>max\\)max=$8; cnt++} END{printf \"매매가\\(공급평당\\): min=%.1f, max=%.1f, avg=%.1f, count=%d/n\",min,max,sum/**)",
+      "Read(//d/park/snowflack/NR>1 && $9!=\"\" {sum+=$9; if\\(min==\"\"||$9<min\\)min=$9; if\\($9>max\\)max=$9; cnt++} END{printf \"전세가\\(공급평당\\): min=%.1f, max=%.1f, avg=%.1f, count=%d/n\",min,max,sum/**)",
+      "Read(//d/park/snowflack/NR>1 && $7!=\"\" {sum+=$7; if\\(min==\"\"||$7+0<min+0\\)min=$7; if\\($7+0>max+0\\)max=$7; cnt++} END{printf \"5세미만 인구: min=%d, max=%d, avg=%.1f/n\",min,max,sum/**)",
+      "Read(//d/park/snowflack/NR>1 && $8!=\"\" {sum+=$8; if\\(min==\"\"||$8+0<min+0\\)min=$8; if\\($8+0>max+0\\)max=$8; cnt++} END{printf \"20~40세 여성: min=%d, max=%d, avg=%.1f/n\",min,max,sum/**)",
+      "Bash(echo \"Exit code: $?\")",
+      "Read(//d/park/snowflack/data/아정당/**)",
+      "Bash(sort -t'\\(' -k2 -rn)",
+      "Bash(head -1 V06*.csv)"
+    ]
+  }
+}
