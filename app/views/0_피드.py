@@ -12,9 +12,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from data_loader import (
     load_region_master, load_population_agg, load_card_sales_agg,
     load_card_sales_time, load_population_time, load_population_demo,
-    load_income_agg, load_realestate,
+    load_income_agg, load_realestate, load_hotplace_monthly,
 )
-from scoring import calc_monthly_signals
 from charts import (
     spending_radar_chart, realestate_trend_chart,
     population_flow_chart, population_pyramid,
@@ -25,50 +24,59 @@ from chat_ui import render_chat_panel
 
 # ── CSS ──
 st.markdown("""<style>
-/* 컬럼 내 간격 제거 */
-[data-testid="stColumn"]:first-child [data-testid="stVerticalBlock"] { gap: 0 !important; }
+/* 전체 패딩 축소 */
+.block-container { padding-top: 3.5rem !important; padding-bottom: 0 !important; }
+[data-testid="stVerticalBlock"] { gap: 0.4rem !important; }
 [data-testid="stColumn"]:nth-child(2) [data-testid="stVerticalBlock"] { gap: 0.5rem !important; }
-/* 투명 버튼 — 카드 크기에 맞춰 겹치기 */
+/* 왼쪽 컬럼 간격 제거 */
+[data-testid="stColumn"]:first-child [data-testid="stVerticalBlock"] { gap: 0 !important; }
+/* 투명 버튼 */
 [data-testid="stBaseButton-tertiary"] {
     margin: 0 !important; position: relative; z-index: 1;
-    margin-top: -38px !important; height: 38px !important;
+    margin-top: -36px !important; height: 36px !important;
 }
 [data-testid="stBaseButton-tertiary"] button {
-    min-height: 38px !important; height: 38px !important;
+    min-height: 36px !important; height: 36px !important;
     padding: 0 !important; opacity: 0 !important; cursor: pointer !important;
 }
 /* 시그널 카드 hover */
 .sig-card { transition: background 0.15s; border-radius: 0 6px 6px 0; }
 .sig-card:hover { background: rgba(128,128,128,0.06) !important; }
 .signal-header {
-    font-size: 13px; font-weight: 700; padding: 12px 0 8px;
-    border-bottom: 1px solid rgba(128,128,128,0.15); margin-bottom: 18px;
+    font-size: 12px; font-weight: 700; padding: 8px 0 6px;
+    border-bottom: 1px solid rgba(128,128,128,0.12); margin-bottom: 14px;
 }
 .kw-tag {
-    display: inline-block; padding: 5px 12px; border-radius: 20px;
-    font-size: 12px; font-weight: 500; margin: 3px 4px 3px 0;
-    border: 1px solid rgba(128,128,128,0.25); background: rgba(128,128,128,0.08);
+    display: inline-block; padding: 4px 10px; border-radius: 16px;
+    font-size: 11px; font-weight: 500; margin: 2px 3px 2px 0;
+    border: 1px solid rgba(128,128,128,0.2); background: rgba(128,128,128,0.06);
 }
-.detail-title-sub { font-size: 13px; opacity: 0.55; margin-bottom: 2px; }
-.detail-title { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 16px; }
-.detail-title .name { font-size: 22px; font-weight: 800; }
-.detail-title .change { font-size: 22px; font-weight: 800; }
+.detail-title-sub { font-size: 12px; opacity: 0.5; margin-bottom: 1px; }
+.detail-title { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; }
+.detail-title .name { font-size: 18px; font-weight: 800; }
+.detail-title .change { font-size: 18px; font-weight: 800; }
 .detail-title .change.up { color: #f04452; }
 .detail-title .change.down { color: #3182f6; }
-.detail-title .date { font-size: 13px; opacity: 0.45; }
+.detail-title .date { font-size: 12px; opacity: 0.4; }
 /* 오른쪽 내 동네 글씨 축소 */
-[data-testid="stColumn"]:last-child [data-testid="stMetricValue"] { font-size: 20px !important; }
-[data-testid="stColumn"]:last-child [data-testid="stMetricLabel"] { font-size: 11px !important; }
-[data-testid="stColumn"]:last-child [data-testid="stMetricDelta"] { font-size: 11px !important; }
-[data-testid="stColumn"]:last-child h3 { font-size: 14px !important; }
+[data-testid="stColumn"]:last-child [data-testid="stMetricValue"] { font-size: 18px !important; }
+[data-testid="stColumn"]:last-child [data-testid="stMetricLabel"] { font-size: 10px !important; }
+[data-testid="stColumn"]:last-child [data-testid="stMetricDelta"] { font-size: 10px !important; }
+/* expander 컴팩트 */
+[data-testid="stExpander"] summary { font-size: 12px !important; padding: 4px 0 !important; }
+/* divider 간격 축소 */
+hr { margin: 10px 0 !important; }
+/* 탭 글씨 */
+[data-testid="stTab"] button { font-size: 12px !important; padding: 4px 8px !important; }
 </style>""", unsafe_allow_html=True)
 
 # ── 데이터 로드 ──
 region_master = load_region_master()
 pop_agg = load_population_agg()
 card_agg = load_card_sales_agg()
+hp = load_hotplace_monthly()
 
-data_districts = set(pop_agg["DISTRICT_CODE"].unique())
+data_districts = set(hp["DISTRICT_CODE"].unique())
 rm = region_master[region_master["district_code"].isin(data_districts)].copy()
 rm["label"] = rm["city_kor"] + " " + rm["district_kor"]
 district_options = rm.sort_values("label")["label"].tolist()
@@ -77,26 +85,146 @@ if not district_options:
     st.error("데이터가 있는 법정동이 없습니다.")
     st.stop()
 
-@st.cache_data
-def _cached_signals(_pop, _card, _rm):
-    return calc_monthly_signals(_pop, _card, _rm)
+WEIGHTS = {"visiting": 0.25, "cafe": 0.20, "young": 0.20, "price": 0.20, "install": 0.15}
 
-signals = _cached_signals(pop_agg, card_agg, region_master)
+def _hp_to_signal(row, months_ago=0):
+    """parquet 행 → 기존 signal dict 형태로 변환"""
+    m = str(row["STANDARD_YEAR_MONTH"])
+    # 변동 원인 자동 생성
+    reasons = []
+    keywords = []
+    sources = ["SPH 유동인구", "SPH 카드매출"]
+
+    if abs(row["pop_chg"]) > 2:
+        d = "증가" if row["pop_chg"] > 0 else "감소"
+        reasons.append(f"총 유동인구가 전월 대비 {abs(row['pop_chg']):.1f}% {d}했어요.")
+        keywords.append(f"유동인구 {d}")
+    sub = []
+    if abs(row.get("res_chg", 0)) > 3:
+        sub.append(f"거주인구 {row['res_chg']:+.1f}%")
+    if abs(row.get("work_chg", 0)) > 3:
+        sub.append(f"직장인구 {row['work_chg']:+.1f}%")
+    if abs(row["visiting_chg"]) > 3:
+        sub.append(f"방문인구 {row['visiting_chg']:+.1f}%")
+    if sub:
+        reasons.append(f"세부적으로 {', '.join(sub)}의 변동이 있었어요.")
+    if abs(row["sales_chg"]) > 2:
+        d = "증가" if row["sales_chg"] > 0 else "감소"
+        sv = row["total_sales"]
+        sv_d = f"{sv/1e8:,.1f}억원" if sv > 1e8 else f"{sv/1e4:,.0f}만원"
+        reasons.append(f"카드매출이 전월 대비 {abs(row['sales_chg']):.1f}% {d}하여 월 {sv_d} 규모예요.")
+        keywords.append(f"소비 {d}")
+    cafe_d = []
+    if abs(row.get("coffee_chg", 0)) > 5:
+        cafe_d.append(f"커피 매출 {row['coffee_chg']:+.1f}%")
+    if abs(row.get("food_chg", 0)) > 5:
+        cafe_d.append(f"식음료 매출 {row['food_chg']:+.1f}%")
+    if cafe_d:
+        reasons.append(f"특히 {', '.join(cafe_d)}로 상권 {'활성화' if row['cafe_chg'] > 0 else '위축'} 신호가 감지돼요.")
+        if row.get("coffee_chg", 0) > 10:
+            keywords.append("카페 트렌드")
+    if abs(row["price_chg"]) > 2:
+        d = "상승" if row["price_chg"] > 0 else "하락"
+        reasons.append(f"매매 평단가가 {abs(row['price_chg']):.1f}% {d}하며 부동산 시장이 {'상승' if row['price_chg'] > 0 else '조정'} 국면이에요.")
+        keywords.append(f"매매가 {d}")
+        sources.append("리치고 부동산")
+    if abs(row["install_chg"]) > 10:
+        d = "증가" if row["install_chg"] > 0 else "감소"
+        reasons.append(f"인터넷 신규설치가 {abs(row['install_chg']):.0f}% {d}하며 전입 수요가 변동하고 있어요.")
+        keywords.append(f"전입 {d}")
+        sources.append("아정당 신규설치")
+    if row.get("visit_ratio", 0) > 40:
+        reasons.append(f"방문인구 비중이 {row['visit_ratio']:.0f}%로 외부 유입이 활발한 상권이에요.")
+        keywords.append("핫플 시그널")
+    if not reasons:
+        reasons.append("전반적인 지표가 소폭 변동했어요.")
+        keywords.append("안정적")
+
+    return {
+        "dc": row["DISTRICT_CODE"],
+        "name": row["name"],
+        "city": row["city"],
+        "month": row["STANDARD_YEAR_MONTH"],
+        "month_label": f"{m[:4]}.{m[4:6]}",
+        "months_ago": months_ago,
+        "direction": row["direction"],
+        "composite": row["hotplace_score"],
+        "visiting_chg": row["visiting_chg"],
+        "cafe_chg": row["cafe_chg"],
+        "pop_chg": row["pop_chg"],
+        "price_chg": row["price_chg"],
+        "install_chg": row["install_chg"],
+        "sales_chg": row["sales_chg"],
+        "visit_ratio": row.get("visit_ratio", 0),
+        "total_pop": row["total_pop"],
+        "total_sales": row["total_sales"],
+        "reasons": reasons,
+        "keywords": keywords,
+        "sources": list(dict.fromkeys(sources)),
+        "weights": WEIGHTS,
+    }
+
+def get_signals_for_month(hp_df, ym, top_n=3):
+    """특정 월의 TOP/BOTTOM 시그널 추출"""
+    month_data = hp_df[hp_df["STANDARD_YEAR_MONTH"] == ym].copy()
+    if month_data.empty:
+        return []
+    month_data = month_data.sort_values("hotplace_score", ascending=False)
+    top = month_data.head(top_n)
+    bottom = month_data.tail(top_n)
+    combined = pd.concat([top, bottom]).drop_duplicates(subset="DISTRICT_CODE")
+    return [_hp_to_signal(row) for _, row in combined.iterrows()]
 
 if "selected_signal_idx" not in st.session_state:
     st.session_state.selected_signal_idx = 0
 if "my_neighborhood" not in st.session_state:
     st.session_state.my_neighborhood = district_options[0]
 
-# ── 헤더 ──
-total_records = len(pop_agg) + len(card_agg)
-st.markdown(
-    f'<div style="display:flex; align-items:center; gap:8px; margin-bottom:2px;">'
-    f'<span style="color:#6366F1; font-weight:700; font-size:16px;">✦</span>'
-    f'<span style="font-size:13px; font-weight:600; opacity:0.5;">'
-    f'데이터 {total_records:,}건을 분석한 시그널</span></div>',
-    unsafe_allow_html=True,
-)
+# ── 년월 선택 (좌우 화살표) ──
+all_ym = sorted(hp["STANDARD_YEAR_MONTH"].unique(), reverse=True)
+
+if "ym_idx" not in st.session_state:
+    st.session_state.ym_idx = 0
+
+total_records = len(hp)
+h1, h2, h3, h4, h5 = st.columns([4, 0.5, 2, 0.5, 4])
+with h1:
+    st.markdown(
+        f'<div style="display:flex; align-items:center; gap:8px;">'
+        f'<span style="color:#6366F1; font-weight:700; font-size:16px;">✦</span>'
+        f'<span style="font-size:13px; font-weight:600; opacity:0.5;">'
+        f'데이터 {total_records:,}건을 분석한 시그널</span></div>',
+        unsafe_allow_html=True,
+    )
+ym_labels = [f"{str(m)[:4]}년 {int(str(m)[4:6])}월" for m in all_ym]
+
+# 드롭다운 키 초기화
+if "ym_sel" not in st.session_state:
+    st.session_state.ym_sel = ym_labels[0]
+
+with h2:
+    if st.button("◀", key="ym_prev", use_container_width=True, disabled=st.session_state.ym_idx >= len(all_ym) - 1):
+        st.session_state.ym_idx = min(st.session_state.ym_idx + 1, len(all_ym) - 1)
+        st.session_state.ym_sel = ym_labels[st.session_state.ym_idx]
+        st.rerun()
+with h3:
+    def _on_ym_change():
+        st.session_state.ym_idx = ym_labels.index(st.session_state.ym_sel)
+    st.selectbox("년월", ym_labels, key="ym_sel", label_visibility="collapsed", on_change=_on_ym_change)
+    st.session_state.ym_idx = ym_labels.index(st.session_state.ym_sel)
+with h4:
+    if st.button("▶", key="ym_next", use_container_width=True, disabled=st.session_state.ym_idx <= 0):
+        st.session_state.ym_idx = max(st.session_state.ym_idx - 1, 0)
+        st.session_state.ym_sel = ym_labels[st.session_state.ym_idx]
+        st.rerun()
+
+selected_ym = all_ym[st.session_state.ym_idx]
+
+# 선택된 월 + 이전 3개월 시그널
+selected_months = [m for m in all_ym if m <= selected_ym][:4]
+signals = []
+for ym in selected_months:
+    signals.extend(get_signals_for_month(hp, ym))
 
 if not signals:
     st.info("감지된 시그널이 없습니다.")
@@ -121,12 +249,18 @@ with col_left:
     for s in filtered:
         month_groups.setdefault(s["month_label"], []).append(s)
 
-    signal_scroll = st.container(height=480)
+    signal_scroll = st.container(height=380)
     with signal_scroll:
       for month_label, month_sigs in month_groups.items():
         year = month_label[:4]
         mon = month_label[5:]
         st.markdown(f'<div class="signal-header">{year}년 {int(mon)}월</div>', unsafe_allow_html=True)
+
+        # 해당 월 전체 순위 계산
+        m_ym = month_sigs[0]["month"] if month_sigs else None
+        m_all = hp[hp["STANDARD_YEAR_MONTH"] == m_ym].sort_values("hotplace_score", ascending=False) if m_ym else pd.DataFrame()
+        rank_map = {row["DISTRICT_CODE"]: i + 1 for i, (_, row) in enumerate(m_all.iterrows())} if not m_all.empty else {}
+        total_d = len(m_all)
 
         for sig_item in month_sigs:
             global_idx = signals.index(sig_item) if sig_item in signals else 0
@@ -135,14 +269,26 @@ with col_left:
             color = "#f04452" if sig_item["direction"] == "up" else "#3182f6"
             dir_label = "상승" if sig_item["direction"] == "up" else "하락"
             kw = sig_item["keywords"][0] if sig_item["keywords"] else ""
+            rank = rank_map.get(sig_item["dc"], 0)
+            if rank and total_d:
+                if rank <= 3:
+                    rank_str = f"상위 {rank}"
+                elif rank > total_d - 3:
+                    rank_str = f"하위 {total_d - rank + 1}"
+                else:
+                    rank_str = f"{rank}/{total_d}"
+            else:
+                rank_str = ""
 
             bg = "rgba(99,102,241,0.10)" if is_selected else "transparent"
             bl = "3px solid #6366F1" if is_selected else "3px solid transparent"
 
             st.markdown(
-                f'<div class="sig-card" style="padding:8px 8px; background:{bg}; border-left:{bl};">'
-                f'  <div style="font-size:14px; font-weight:700;">{sig_item["name"]}</div>'
-                f'  <div style="font-size:12px; margin-top:2px;">'
+                f'<div class="sig-card" style="padding:6px 6px; background:{bg}; border-left:{bl};">'
+                f'  <div style="display:flex; justify-content:space-between;">'
+                f'    <span style="font-size:13px; font-weight:700;">{sig_item["name"]}</span>'
+                f'    <span style="font-size:9px; opacity:0.3;">{rank_str}</span></div>'
+                f'  <div style="font-size:11px; margin-top:1px;">'
                 f'    <span style="color:{color};">{chg_prefix}{sig_item["composite"]}점 {dir_label}</span>'
                 f'    <span style="opacity:0.35;"> · {kw}</span></div>'
                 f'</div>',
@@ -152,32 +298,33 @@ with col_left:
                 st.session_state.selected_signal_idx = global_idx
                 st.rerun()
 
-    # ── 근처 시그널 (클릭 가능) ──
-    st.divider()
+    # ── 근처 시그널 (parquet에서 직접 조회) ──
+    # ── 근처 시그널 (별도 컨테이너) ──
     my_nb = st.session_state.my_neighborhood
     my_city = my_nb.split(" ")[0] if my_nb else ""
     my_short = my_nb.split(" ")[-1] if my_nb else ""
-    nearby = [s for s in signals if s["city"] == my_city and s["name"] != my_nb][:3]
+    my_dc = rm[rm["label"] == my_nb]["district_code"].values[0] if my_nb in rm["label"].values else ""
+    same_city_hp = hp[(hp["city"] == my_city) & (hp["STANDARD_YEAR_MONTH"] == selected_ym)].sort_values("hotplace_score", ascending=False)
+    my_row = same_city_hp[same_city_hp["DISTRICT_CODE"] == my_dc]
+    others_rows = same_city_hp[same_city_hp["DISTRICT_CODE"] != my_dc].head(3)
+    nearby_rows = pd.concat([my_row, others_rows])
+    nearby = [_hp_to_signal(row) for _, row in nearby_rows.iterrows()]
     if nearby:
-        st.markdown(f'<div style="font-size:13px; font-weight:700; margin-bottom:4px;">{my_short} 근처 시그널</div>', unsafe_allow_html=True)
-        for ni, r in enumerate(nearby):
-            rcolor = "#f04452" if r["direction"] == "up" else "#3182f6"
-            rp = "+" if r["direction"] == "up" else ""
-            rk = r["keywords"][0] if r["keywords"] else ""
-            st.markdown(
-                f'<div class="sig-card" style="padding:10px 0; cursor:pointer;">'
-                f'  <div style="font-size:13px; font-weight:600;">{r["name"]}</div>'
-                f'  <div style="font-size:12px; margin-top:3px;">'
-                f'    <span style="color:{rcolor};">{rp}{r["composite"]}점</span>'
-                f'    <span style="opacity:0.35;"> · {rk}</span></div>'
-                f'</div>',
-                unsafe_allow_html=True,
-            )
-            if st.button("ㅤ", key=f"nearby_{ni}", use_container_width=True, type="tertiary"):
-                idx = signals.index(r) if r in signals else None
-                if idx is not None:
-                    st.session_state.selected_signal_idx = idx
-                    st.rerun()
+        with st.container(border=True):
+            st.markdown(f'<div style="font-size:13px; font-weight:800; margin-bottom:4px;">{my_short} 근처 시그널</div>', unsafe_allow_html=True)
+            for ni, r in enumerate(nearby):
+                rcolor = "#f04452" if r["direction"] == "up" else "#3182f6"
+                rp = "+" if r["direction"] == "up" else ""
+                rk = r["keywords"][0] if r["keywords"] else ""
+                st.markdown(
+                    f'<div style="padding:6px 0; border-bottom:1px solid rgba(128,128,128,0.06);">'
+                    f'  <div style="font-size:12px; font-weight:600;">{r["name"]}</div>'
+                    f'  <div style="font-size:11px; margin-top:2px;">'
+                    f'    <span style="color:{rcolor};">{rp}{r["composite"]}점</span>'
+                    f'    <span style="opacity:0.35;"> · {rk}</span></div>'
+                    f'</div>',
+                    unsafe_allow_html=True,
+                )
 
 # ─────────────────────────────────────
 # MIDDLE: 상세 패널
@@ -224,15 +371,15 @@ with col_mid:
         for src in sig["sources"]:
             st.markdown(f'<div style="font-size:12px; padding:2px 0;">{src} · {m_year}년 {int(m_mon)}월</div>', unsafe_allow_html=True)
 
-    # 점수 breakdown (접힌 상태)
+    # 점수 breakdown (접힌 상태) — 핫플 5개 지표
+    w = sig.get("weights", {"visiting": 0.25, "cafe": 0.20, "young": 0.20, "price": 0.20, "install": 0.15})
     with st.expander("점수 구성 보기", expanded=False):
-        pop_score = sig["pop_chg"] * 0.35
-        sales_score = sig["sales_chg"] * 0.35
-        visit_score = sig["visit_chg"] * 0.30
         for label, chg, weight, score in [
-            ("유동인구", sig["pop_chg"], 35, pop_score),
-            ("카드매출", sig["sales_chg"], 35, sales_score),
-            ("방문인구", sig["visit_chg"], 30, visit_score),
+            ("방문인구", sig["visiting_chg"], int(w["visiting"]*100), round(sig["visiting_chg"] * w["visiting"], 1)),
+            ("카페·식음료", sig["cafe_chg"], int(w["cafe"]*100), round(sig["cafe_chg"] * w["cafe"], 1)),
+            ("유동인구", sig["pop_chg"], int(w["young"]*100), round(sig["pop_chg"] * w["young"], 1)),
+            ("매매가", sig["price_chg"], int(w["price"]*100), round(sig["price_chg"] * w["price"], 1)),
+            ("신규설치", sig["install_chg"], int(w["install"]*100), round(sig["install_chg"] * w["install"], 1)),
         ]:
             bar_color = "#f04452" if score > 0 else "#3182f6"
             bar_width = min(abs(score) / max(abs(sig["composite"]), 1) * 100, 100)
@@ -252,7 +399,9 @@ with col_mid:
                 f'</div>',
                 unsafe_allow_html=True,
             )
-        mid_current = round(100 + sig["composite"], 1)
+        sig_hp_all = hp[(hp["DISTRICT_CODE"] == sig["dc"]) & (hp["STANDARD_YEAR_MONTH"] <= sig["month"])].sort_values("STANDARD_YEAR_MONTH")
+        mid_current = round(100 + sig_hp_all["hotplace_score"].sum(), 1)
+        mid_prev = round(mid_current - sig["composite"], 1)
         total_color = "#f04452" if sig["composite"] > 0 else "#3182f6"
         total_prefix = "+" if sig["composite"] > 0 else ""
         st.markdown(
@@ -261,7 +410,7 @@ with col_mid:
             f'    <span>종합</span>'
             f'    <span style="color:{total_color};">{mid_current}점</span>'
             f'  </div>'
-            f'  <div style="text-align:right; font-size:10px; opacity:0.35;">100점 → {mid_current}점 ({total_prefix}{sig["composite"]}점)</div>'
+            f'  <div style="text-align:right; font-size:10px; opacity:0.35;">{mid_prev}점 → {mid_current}점 ({total_prefix}{sig["composite"]}점)</div>'
             f'</div>',
             unsafe_allow_html=True,
         )
@@ -269,23 +418,24 @@ with col_mid:
     st.divider()
 
     # 연관 동네 (클릭 가능)
-    st.markdown('<div style="font-size:14px; font-weight:700; margin-bottom:6px;">연관 동네</div>', unsafe_allow_html=True)
+    st.markdown('<div style="font-size:13px; font-weight:800; margin-bottom:4px;">연관 동네</div>', unsafe_allow_html=True)
     same_city = [s for s in signals if s["city"] == sig["city"] and s["dc"] != sig["dc"]]
     if same_city:
         for ri, rel in enumerate(same_city[:5]):
             rc = "#f04452" if rel["direction"] == "up" else "#3182f6"
             rp = "+" if rel["direction"] == "up" else ""
             rk = rel["keywords"][0] if rel["keywords"] else ""
-            rel_curr = round(100 + rel["composite"], 1)
+            rel_hp_all = hp[(hp["DISTRICT_CODE"] == rel["dc"]) & (hp["STANDARD_YEAR_MONTH"] <= rel["month"])]
+            rel_curr = round(100 + rel_hp_all["hotplace_score"].sum(), 1)
             st.markdown(
                 f'<div class="sig-card" style="display:flex; justify-content:space-between; align-items:center;'
-                f'  padding:8px 0; border-bottom:1px solid rgba(128,128,128,0.08); cursor:pointer;">'
-                f'  <div style="display:flex; align-items:center; gap:8px;">'
-                f'    <span style="font-size:13px; font-weight:600;">{rel["name"]}</span>'
-                f'    <span style="font-size:13px; font-weight:700;">{rel_curr}점</span>'
-                f'    <span style="font-size:12px; color:{rc}; font-weight:600;">{rp}{rel["composite"]}점</span>'
+                f'  padding:4px 0; border-bottom:1px solid rgba(128,128,128,0.06); cursor:pointer;">'
+                f'  <div style="display:flex; align-items:center; gap:5px;">'
+                f'    <span style="font-size:11px; font-weight:600;">{rel["name"]}</span>'
+                f'    <span style="font-size:11px; font-weight:700;">{rel_curr}점</span>'
+                f'    <span style="font-size:10px; color:{rc}; font-weight:600;">{rp}{rel["composite"]}점</span>'
                 f'  </div>'
-                f'  <span style="font-size:11px; opacity:0.35;">{rk}</span>'
+                f'  <span style="font-size:9px; opacity:0.3;">{rk}</span>'
                 f'</div>',
                 unsafe_allow_html=True,
             )
@@ -301,7 +451,8 @@ with col_mid:
 # RIGHT: 내 동네 프로파일
 # ─────────────────────────────────────
 with col_right:
-    st.markdown('<div style="font-size:14px; font-weight:700;">내 동네</div>', unsafe_allow_html=True)
+    st.markdown("")
+    st.markdown('<div style="font-size:14px; font-weight:700; margin-bottom:8px;">내 동네</div>', unsafe_allow_html=True)
     current_idx = district_options.index(st.session_state.my_neighborhood) if st.session_state.my_neighborhood in district_options else 0
     new_nb = st.selectbox("동네 변경", district_options, index=current_idx, label_visibility="collapsed", key="my_nb_select")
     if new_nb != st.session_state.my_neighborhood:
@@ -314,10 +465,13 @@ with col_right:
     district = sel_row["district_kor"]
 
     all_months = sorted(pop_agg["STANDARD_YEAR_MONTH"].unique(), reverse=True)
-    latest_month = all_months[0] if all_months else None
-    prev_month = all_months[1] if len(all_months) >= 2 else None
+    # 선택된 년월 기준
+    latest_month = selected_ym if selected_ym in all_months else (all_months[0] if all_months else None)
+    ym_idx = all_months.index(latest_month) if latest_month in all_months else 0
+    prev_month = all_months[ym_idx + 1] if ym_idx + 1 < len(all_months) else None
     ml_str = f"{str(latest_month)[:4]}년 {int(str(latest_month)[4:6])}월" if latest_month else ""
     st.caption(f"{city} {district} · {ml_str}")
+    st.page_link("views/2_동네_프로파일.py", label=f"프로파일 상세 보기 →", use_container_width=True)
 
     if not latest_month:
         st.stop()
@@ -339,27 +493,79 @@ with col_right:
     )
 
     with tab_summary:
-        # 프로파일 점수
-        my_sig = [s for s in signals if s["dc"] == dc]
+        # 프로파일 점수 — 누적 계산 (100 + 전월들 합산)
+        my_hp_all = hp[(hp["DISTRICT_CODE"] == dc) & (hp["STANDARD_YEAR_MONTH"] <= selected_ym)].sort_values("STANDARD_YEAR_MONTH")
+        my_hp_curr = hp[(hp["DISTRICT_CODE"] == dc) & (hp["STANDARD_YEAR_MONTH"] == selected_ym)]
+        my_sig = [_hp_to_signal(row) for _, row in my_hp_curr.iterrows()] if not my_hp_curr.empty else []
+
         if my_sig:
             ls = my_sig[0]
-            current_score = round(100 + ls["composite"], 1)
-            score_color = "#f04452" if ls["direction"] == "up" else "#3182f6"
-            score_prefix = "+" if ls["direction"] == "up" else ""
+            cumulative_score = round(100 + my_hp_all["hotplace_score"].sum(), 1)
+            prev_score = round(cumulative_score - ls["composite"], 1)
+            month_chg = ls["composite"]
+            score_color = "#f04452" if month_chg > 0 else "#3182f6"
+            score_prefix = "+" if month_chg > 0 else ""
+
+            # 순위 계산
+            month_all = hp[hp["STANDARD_YEAR_MONTH"] == selected_ym].copy()
+            month_all["cum"] = month_all["DISTRICT_CODE"].apply(
+                lambda d: 100 + hp[(hp["DISTRICT_CODE"] == d) & (hp["STANDARD_YEAR_MONTH"] <= selected_ym)]["hotplace_score"].sum()
+            )
+            rank = int((month_all["cum"] > cumulative_score).sum() + 1)
+            total_districts = len(month_all)
+
             st.markdown(
                 f'<div style="padding:4px 0;">'
-                f'  <div style="font-size:11px; opacity:0.5;">프로파일 점수</div>'
-                f'  <div style="font-size:26px; font-weight:800;">{current_score}점</div>'
+                f'  <div style="display:flex; justify-content:space-between; align-items:center;">'
+                f'    <span style="font-size:11px; opacity:0.5;">핫플 점수</span>'
+                f'    <span style="font-size:11px; opacity:0.5;">{total_districts}개 동네 중 {rank}위</span>'
+                f'  </div>'
+                f'  <div style="font-size:22px; font-weight:800;">{cumulative_score}점</div>'
                 f'  <div style="font-size:11px; color:{score_color};">'
-                f'    전월대비 {score_prefix}{ls["composite"]}점 (100점 → {current_score}점)</div>'
+                f'    전월대비 {score_prefix}{month_chg}점 ({prev_score}점 → {cumulative_score}점)</div>'
                 f'</div>',
                 unsafe_allow_html=True,
             )
+
+            # 점수 추이 미니 차트
+            # 전체 기간 추이 (x축 고정)
+            all_hp_dc = hp[hp["DISTRICT_CODE"] == dc].sort_values("STANDARD_YEAR_MONTH")
+            if len(all_hp_dc) > 1:
+                trend = all_hp_dc.copy()
+                trend["cum_score"] = 100 + trend["hotplace_score"].cumsum()
+                trend["label"] = trend["STANDARD_YEAR_MONTH"].astype(str).apply(lambda x: f"{x[2:4]}.{x[4:6]}")
+                curr_label = f"{str(selected_ym)[2:4]}.{str(selected_ym)[4:6]}"
+
+                fig_trend = go.Figure(go.Scatter(
+                    x=trend["label"], y=trend["cum_score"],
+                    mode="lines", line=dict(color="#6366F1", width=2),
+                    fill="tozeroy", fillcolor="rgba(99,102,241,0.08)",
+                ))
+                # 현재 월 포인트
+                curr_row = trend[trend["label"] == curr_label]
+                if not curr_row.empty:
+                    fig_trend.add_trace(go.Scatter(
+                        x=[curr_label], y=[curr_row["cum_score"].values[0]],
+                        mode="markers", marker=dict(size=10, color="#f04452"),
+                        showlegend=False,
+                    ))
+                    fig_trend.add_vline(x=curr_label, line_dash="dot", line_color="rgba(240,68,82,0.3)")
+                fig_trend.update_layout(
+                    height=100, margin=dict(l=0, r=0, t=3, b=3),
+                    xaxis=dict(showgrid=False, tickfont=dict(size=8)),
+                    yaxis=dict(showgrid=False, showticklabels=False),
+                    hovermode="x unified", showlegend=False,
+                )
+                st.plotly_chart(fig_trend, use_container_width=True, key="my_trend")
+
             with st.expander("점수 구성 보기"):
+                lw = ls.get("weights", {"visiting": 0.25, "cafe": 0.20, "young": 0.20, "price": 0.20, "install": 0.15})
                 for label, chg, weight, score in [
-                    ("유동인구", ls["pop_chg"], 35, round(ls["pop_chg"] * 0.35, 1)),
-                    ("카드매출", ls["sales_chg"], 35, round(ls["sales_chg"] * 0.35, 1)),
-                    ("방문인구", ls["visit_chg"], 30, round(ls["visit_chg"] * 0.30, 1)),
+                    ("방문인구", ls["visiting_chg"], int(lw["visiting"]*100), round(ls["visiting_chg"] * lw["visiting"], 1)),
+                    ("카페·식음료", ls["cafe_chg"], int(lw["cafe"]*100), round(ls["cafe_chg"] * lw["cafe"], 1)),
+                    ("유동인구", ls["pop_chg"], int(lw["young"]*100), round(ls["pop_chg"] * lw["young"], 1)),
+                    ("매매가", ls["price_chg"], int(lw["price"]*100), round(ls["price_chg"] * lw["price"], 1)),
+                    ("신규설치", ls["install_chg"], int(lw["install"]*100), round(ls["install_chg"] * lw["install"], 1)),
                 ]:
                     bc = "#f04452" if score > 0 else "#3182f6"
                     bw = min(abs(score) / max(abs(ls["composite"]), 1) * 100, 100)

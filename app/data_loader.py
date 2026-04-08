@@ -119,6 +119,12 @@ def load_code_master():
     return pd.read_parquet(PROCESSED_DIR / "code_master.parquet")
 
 
+@st.cache_data
+def load_hotplace_monthly():
+    """월별 핫플 점수 (전처리 완료)"""
+    return pd.read_parquet(PROCESSED_DIR / "hotplace_monthly.parquet")
+
+
 def get_district_list():
     """법정동 목록 (시군구 > 법정동 형태)"""
     rm = load_region_master()

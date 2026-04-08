@@ -15,7 +15,7 @@ st.set_page_config(
 )
 
 # ── 페이지 정의 ──
-page_feed = st.Page("views/0_뉴스_타임라인.py", title="피드", default=True)
+page_feed = st.Page("views/0_피드.py", title="피드", default=True)
 page_map = st.Page("views/1_동네_지도.py", title="지도")
 page_profile = st.Page("views/2_동네_프로파일.py", title="프로파일")
 page_hot = st.Page("views/3_넥스트_핫플.py", title="핫플")
@@ -26,7 +26,7 @@ all_pages = [page_feed, page_map, page_profile, page_hot, page_twin, page_compar
 
 # ── 글로벌 폰트 축소 + 헤더 스타일 ──
 st.markdown("""<style>
-.block-container { padding-top: 0.5rem !important; }
+.block-container { padding-top: 3.5rem !important; }
 html, body, [data-testid="stAppViewContainer"] { font-size: 14px !important; }
 [data-testid="stMetricValue"] { font-size: 20px !important; }
 [data-testid="stMetricLabel"] { font-size: 11px !important; }
@@ -36,8 +36,12 @@ h2 { font-size: 18px !important; }
 h3 { font-size: 15px !important; }
 p, li, span, div { font-size: inherit; }
 
-/* Streamlit 기본 헤더 숨기기 */
-[data-testid="stHeader"] { display: none !important; }
+/* Streamlit 기본 헤더 — 배경 투명, ⋮ 메뉴만 보이게 */
+[data-testid="stHeader"] {
+    background: transparent !important;
+    pointer-events: none;
+}
+[data-testid="stHeader"] > * { pointer-events: auto; }
 
 /* 헤더 page_link 스타일 */
 .header-row [data-testid="stPageLink-NavLink"] a {
