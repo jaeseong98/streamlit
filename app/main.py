@@ -1,6 +1,5 @@
 """
-동네 엑스레이 + 디지털 트윈 — 앱 진입점
-st.navigation API로 페이지 네비게이션 관리
+동네 엑스레이 — 앱 진입점
 """
 import streamlit as st
 import sys
@@ -12,45 +11,71 @@ st.set_page_config(
     page_title="동네 엑스레이",
     page_icon="🏙️",
     layout="wide",
-    initial_sidebar_state="expanded",
+    initial_sidebar_state="collapsed",
 )
 
-# ── 사이드바 브랜딩 ──
-with st.sidebar:
+# ── 페이지 정의 ──
+page_feed = st.Page("views/0_뉴스_타임라인.py", title="피드", default=True)
+page_map = st.Page("views/1_동네_지도.py", title="지도")
+page_profile = st.Page("views/2_동네_프로파일.py", title="프로파일")
+page_hot = st.Page("views/3_넥스트_핫플.py", title="핫플")
+page_twin = st.Page("views/4_디지털_트윈.py", title="트윈")
+page_compare = st.Page("views/5_동네_비교.py", title="비교")
+
+all_pages = [page_feed, page_map, page_profile, page_hot, page_twin, page_compare]
+
+# ── 글로벌 폰트 축소 + 헤더 스타일 ──
+st.markdown("""<style>
+.block-container { padding-top: 0.5rem !important; }
+html, body, [data-testid="stAppViewContainer"] { font-size: 14px !important; }
+[data-testid="stMetricValue"] { font-size: 20px !important; }
+[data-testid="stMetricLabel"] { font-size: 11px !important; }
+[data-testid="stMetricDelta"] { font-size: 11px !important; }
+h1 { font-size: 22px !important; }
+h2 { font-size: 18px !important; }
+h3 { font-size: 15px !important; }
+p, li, span, div { font-size: inherit; }
+
+/* Streamlit 기본 헤더 숨기기 */
+[data-testid="stHeader"] { display: none !important; }
+
+/* 헤더 page_link 스타일 */
+.header-row [data-testid="stPageLink-NavLink"] a {
+    font-size: 14px !important; font-weight: 500 !important;
+    color: inherit !important; opacity: 0.5;
+    text-decoration: none !important;
+    padding: 4px 0 !important;
+}
+.header-row [data-testid="stPageLink-NavLink"] a:hover { opacity: 1; }
+.header-row [data-testid="stPageLink-NavLink"][aria-current="page"] a {
+    opacity: 1; font-weight: 700 !important;
+}
+</style>""", unsafe_allow_html=True)
+
+# ── 헤더: 로고 + 메뉴 한 줄 ──
+st.markdown('<div class="header-row">', unsafe_allow_html=True)
+cols = st.columns([1.5, 0.6, 0.6, 0.8, 0.6, 0.6, 0.6, 6])
+
+with cols[0]:
     st.markdown(
-        """
-        <div style="text-align:center; padding: 8px 0 4px;">
-            <div style="font-size:28px;">🏙️</div>
-            <div style="
-                font-size:18px;
-                font-weight:800;
-                background: linear-gradient(135deg, #6366F1, #8B5CF6);
-                -webkit-background-clip: text;
-                -webkit-text-fill-color: transparent;
-                letter-spacing: -0.5px;
-            ">동네 엑스레이</div>
-            <div style="font-size:11px; color:#888; margin-top:2px;">서울 상권 데이터 인텔리전스</div>
-        </div>
-        """,
+        '<div style="font-size:15px; font-weight:800; letter-spacing:-0.5px; padding:4px 0;">'
+        '🏙️ <span style="background:linear-gradient(135deg,#6366F1,#8B5CF6);'
+        '-webkit-background-clip:text; -webkit-text-fill-color:transparent;">'
+        '동네 엑스레이</span></div>',
         unsafe_allow_html=True,
     )
-    st.divider()
 
-# ── 페이지 정의 ──
-pages = {
-    "홈": [
-        st.Page("views/0_뉴스_타임라인.py", title="인사이트 피드", icon="📡", default=True),
-    ],
-    "분석 도구": [
-        st.Page("views/1_동네_지도.py", title="동네 지도", icon="🗺️"),
-        st.Page("views/2_동네_프로파일.py", title="동네 프로파일", icon="🔍"),
-        st.Page("views/3_넥스트_핫플.py", title="넥스트 핫플", icon="🔥"),
-    ],
-    "시뮬레이션": [
-        st.Page("views/4_디지털_트윈.py", title="디지털 트윈", icon="🌆"),
-        st.Page("views/5_동네_비교.py", title="동네 비교", icon="⚖️"),
-    ],
-}
+for i, page in enumerate(all_pages):
+    with cols[i + 1]:
+        st.page_link(page, label=page.title)
 
-nav = st.navigation(pages)
+st.markdown('</div>', unsafe_allow_html=True)
+st.markdown('<div style="border-bottom:1px solid rgba(128,128,128,0.1); margin-bottom:8px;"></div>', unsafe_allow_html=True)
+
+# ── 네비게이션 실행 ──
+try:
+    nav = st.navigation(all_pages, position="hidden")
+except TypeError:
+    nav = st.navigation(all_pages)
+
 nav.run()
