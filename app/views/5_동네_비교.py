@@ -15,7 +15,7 @@ from data_loader import (
 from charts import CATEGORY_KOR
 from chat_ui import render_chat_panel
 
-st.set_page_config(page_title="동네 비교", page_icon="⚖️", layout="wide")
+
 st.title("⚖️ 동네 비교")
 
 # ── 데이터 로드 ──

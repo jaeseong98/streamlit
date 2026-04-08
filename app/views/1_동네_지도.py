@@ -19,7 +19,7 @@ from data_loader import (
 from scoring import calc_hotplace_score, normalize_series, calc_purchasing_power
 from chat_ui import render_chat_panel
 
-st.set_page_config(page_title="동네 지도", page_icon="🗺️", layout="wide")
+
 st.title("🗺️ 동네 지도")
 st.caption("데이터 범위: 서울 중구 · 영등포구 · 서초구 (118개 법정동)")
 

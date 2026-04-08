@@ -18,7 +18,7 @@ from scoring import calc_hotplace_score
 from charts import hotplace_score_bar
 from chat_ui import render_chat_panel
 
-st.set_page_config(page_title="넥스트 핫플", page_icon="🔥", layout="wide")
+
 st.title("🔥 넥스트 핫플 예측")
 st.markdown("5개 선행지표를 조합하여 **다음에 뜰 동네**를 예측합니다.")
 st.caption("데이터 범위: 서울 중구 · 영등포구 · 서초구 (118개 법정동)")

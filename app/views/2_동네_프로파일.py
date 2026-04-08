@@ -19,7 +19,7 @@ from charts import (
 )
 from chat_ui import render_chat_panel
 
-st.set_page_config(page_title="동네 프로파일", page_icon="🔍", layout="wide")
+
 st.title("🔍 동네 프로파일")
 
 # ── 데이터 로드 ──
